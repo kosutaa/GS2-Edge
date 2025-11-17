@@ -1,0 +1,151 @@
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+const char* ssid = "FIAP-IOT";
+const char* password = "F!@p25.IOT";
+
+const char* mqtt_server = "44.223.0.185";
+const char* mqtt_topic = "fiap/gs/pomodoro/user1";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+const int BOTAO_PIN = 15;
+const int LED_VERDE_PIN = 12;
+const int LED_VERMELHO_PIN = 14;
+const int BUZZER_PIN = 27;
+
+unsigned long focusDuration = 10000;
+unsigned long breakDuration = 5000;
+
+enum State { IDLE, FOCUS, BREAK };
+State currentState = IDLE;
+unsigned long previousMillis = 0;
+
+bool buttonPressed = false;
+unsigned long lastDebounceTime = 0;
+unsigned long debounceDelay = 50;
+
+void setup_wifi() {
+  delay(10);
+  Serial.println();
+  Serial.print("Conectando-se a ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nWiFi conectado!");
+  Serial.print("Endereço IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+void reconnect_mqtt() {
+  while (!client.connected()) {
+    Serial.print("Tentando conexão MQTT...");
+    if (client.connect("ESP32_PomodoroClient")) {
+      Serial.println("conectado!");
+    } else {
+      Serial.print("falhou, rc=");
+      Serial.print(client.state());
+      Serial.println(" tentando novamente em 5 segundos");
+      delay(5000);
+    }
+  }
+}
+
+void publish_status(const char* status) {
+  char payload[50];
+  snprintf(payload, 50, "{\"status\": \"%s\"}", status);
+  
+  Serial.print("Publicando no tópico ");
+  Serial.print(mqtt_topic);
+  Serial.print(": ");
+  Serial.println(payload);
+  
+  client.publish(mqtt_topic, payload);
+}
+
+void play_buzzer() {
+  tone(BUZZER_PIN, 1000, 200);
+  delay(200);
+  noTone(BUZZER_PIN);
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(LED_VERDE_PIN, OUTPUT);
+  pinMode(LED_VERMELHO_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(BOTAO_PIN, INPUT_PULLUP);
+
+  digitalWrite(LED_VERDE_PIN, LOW);
+  digitalWrite(LED_VERMELHO_PIN, LOW);
+  noTone(BUZZER_PIN);
+
+  setup_wifi();
+  client.setServer(mqtt_server, 1883);
+}
+
+void loop() {
+  if (!client.connected()) {
+    reconnect_mqtt();
+  }
+  client.loop();
+
+  unsigned long currentMillis = millis();
+
+  int reading = digitalRead(BOTAO_PIN);
+  if (reading == LOW) {
+    if (currentMillis - lastDebounceTime > debounceDelay) {
+      if (!buttonPressed && currentState == IDLE) {
+        Serial.println("Botão pressionado! Iniciando ciclo de FOCO.");
+        currentState = FOCUS;
+        previousMillis = currentMillis;
+        digitalWrite(LED_VERDE_PIN, HIGH);
+        digitalWrite(LED_VERMELHO_PIN, LOW);
+        play_buzzer();
+        publish_status("foco");
+      }
+      buttonPressed = true;
+    }
+    lastDebounceTime = currentMillis;
+  } else {
+    buttonPressed = false;
+  }
+
+  switch (currentState) {
+    
+    case IDLE:
+      break;
+
+    case FOCUS:
+      if (currentMillis - previousMillis >= focusDuration) {
+        Serial.println("Tempo de foco terminou! Iniciando PAUSA.");
+        currentState = BREAK;
+        previousMillis = currentMillis;
+        digitalWrite(LED_VERDE_PIN, LOW);
+        digitalWrite(LED_VERMELHO_PIN, HIGH);
+        play_buzzer();
+        publish_status("pausa");
+      }
+      break;
+
+    case BREAK:
+      if (currentMillis - previousMillis >= breakDuration) {
+        Serial.println("Tempo de pausa terminou! Voltando ao modo ocioso.");
+        currentState = IDLE;
+        previousMillis = currentMillis;
+        digitalWrite(LED_VERDE_PIN, LOW);
+        digitalWrite(LED_VERMELHO_PIN, LOW);
+        play_buzzer();
+        publish_status("ocioso");
+      }
+      break;
+  }
+}
