@@ -47,7 +47,7 @@ Para replicar o projeto, são necessários os seguintes componentes:
 
 A montagem do circuito pode ser visualizada na simulação do Wokwi.
 
-*https://imgur.com/w1i4vJc*
+https://imgur.com/w1i4vJc
 ``
 
 ### Tabela de Pinagem
