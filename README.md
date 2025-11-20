@@ -106,7 +106,7 @@ Instruções para replicar e testar a simulação:
 ## 🎥 Demonstração
 
 * **Link da Simulação Wokwi:** `https://wokwi.com/projects/447878016430607361`
-* **Link do Vídeo Explicativo:** `[COLE SEU LINK DO YOUTUBE/DRIVE AQUI]`
+* **Link do Vídeo Explicativo:** `https://youtu.be/zl3ACW83EBY`
 
 ---
 
